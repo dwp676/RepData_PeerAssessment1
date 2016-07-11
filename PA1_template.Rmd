@@ -1,25 +1,99 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+#"Week 2 Assignment"
+output: html_document
 ---
 
+This analysis is intended to evaluate and compare activity levels between weekdays and weekends as well as across daypart.
 
-## Loading and preprocessing the data
+The assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+##Load and PreProcess Data
+
+To evalute the data we must first download the file from the source link and then load the data from the "activity.csv" file.  Once loaded, it is necessary to process the initial data into groupings that summarize step performance by date and interval subsets
+
+```{r, echo = TRUE, results="hide"}
+setwd("~") #set default directory
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", destfile = "activity.zip") 
+unzip("activity.zip")
+activity <- read.csv("activity.csv", stringsAsFactors = FALSE)
+dailysteps <- aggregate(activity$steps, list(activity$date), sum, na.rm=TRUE)
+names(dailysteps) <-c("Date","Steps")
+intervalsteps <-aggregate(activity$steps, list(activity$interval), mean, na.rm=TRUE)
+names(intervalsteps) <- c("Interval","AvgSteps")
+
+#Load packages
+install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+library(ggplot2)
+
+```
+
+##What is mean total number of steps taken during the day
+
+A histogram is provided to illustrate the total daily step frequency. 
+
+```{r,echo=TRUE}
+hist(dailysteps$Steps, breaks=50, xlab = "Daily Steps", main = "Daily Step Frequency")
+mean <- mean(dailysteps$Steps)
+median <-median(dailysteps$Steps)
+mean
+median
+```
+
+The mean daily steps are `r mean` and the median daily steps are `r median`.
+
+##What is the average daily activity pattern?
+
+Now we plot the steps by daily interval.
+
+```{r stepsbyinterval, echo=TRUE}
+plot(x=intervalsteps$Interval, y=intervalsteps$AvgSteps, type= "l", xlab="Interval", ylab="AvgSteps", main = "Average Steps per Interval")
+maxinterval <- intervalsteps[which.max(intervalsteps$AvgSteps),"Interval"]
+maxinterval
+```
+
+We see that the maximum interval is at `r maxinterval`
+
+##Imputing Missing values
 
 
+In this step we will impute some missing values using the mice package.  We will then compare a histogram that includes imputed values to our original data to see how the imputation impacts our results.  
 
-## What is mean total number of steps taken per day?
+```{r, echo=TRUE, results="hide"}
+NaRows <- sum(!complete.cases(activity))
+
+install.packages("mice", repos = "http://cran.us.r-project.org")
+library(mice)
+activity_impute <- complete(mice(activity))
+dailysteps_impute <- aggregate(activity_impute$steps, list(activity_impute$date), sum, na.rm=TRUE)
+names(dailysteps_impute) <- c("Date","Steps")
+```
+
+Results
+```{r}
+hist(dailysteps_impute$Steps, breaks=50, xlab="DailySteps", main = "Daily Step Frequency - Imputed Values")
+meanstepsimpute <- mean(dailysteps_impute$Steps)
+medianstepsimpute <- median(dailysteps_impute$Steps)
+meanstepsimpute
+medianstepsimpute
+```
+
+Prior to imputing data there were `r NaRows` rows that had NA values.  The new mean steps are `r meanstepsimpute` and the new median step value is `r medianstepsimpute`
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+Finally, we will compare average steps across intervals for weekdays compared to weekends.  
+
+```{r weekdayvsweekend,echo=TRUE}
+
+activity_impute$dayofweek <- weekdays(as.Date(activity_impute$date))
+weekdays1 <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
+activity_impute$weekday <- factor((activity_impute$dayofweek %in% weekdays1),levels = c(FALSE,TRUE),labels = c("Weekend","Weekday"))
+
+intervalsubset<- aggregate(activity_impute$steps, by=list(activity_impute$interval,activity_impute$weekday), mean)
+names(intervalsubset) <-c("interval","weekday","avgsteps")
 
 
+panel <-ggplot(intervalsubset, aes(x=interval, y=avgsteps)) + geom_line()+facet_wrap(~ weekday, nrow = 2)
+panel
+```
 
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+The graphs suggest that weekend step activity usually starts later in the day but is more consistent throughout the day.  On weekdays the most significant activity occurs between 8 and 10am and then falls to a lower baseline throughout the rest of the day.
